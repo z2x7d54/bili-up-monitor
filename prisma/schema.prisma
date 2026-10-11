@@ -1,0 +1,204 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model UpCreator {
+  id             String    @id @default(cuid())
+  mid            String    @unique
+  name           String
+  alias          String?
+  note           String?
+  avatarUrl      String?
+  description    String?
+  groupName      String    @default("未分组")
+  status         String    @default("MONITORING")
+  followingCount Int       @default(0)
+  followerCount  Int       @default(0)
+  likeCount      Int       @default(0)
+  viewCount      Int       @default(0)
+  videoCount     Int       @default(0)
+  lastVideoSyncFromAt DateTime?
+  lastVideoSyncAt DateTime?
+  videoSyncMonth  String?
+  lastFetchedAt  DateTime?
+  lastFailedAt   DateTime?
+  lastError      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  contents       ContentItem[]
+  snapshots      MetricSnapshot[]
+  taskTargets    TaskTarget[]
+  goals          GoalConfig[]
+
+  @@index([groupName])
+  @@index([status])
+  @@index([lastFetchedAt])
+}
+
+model CreatorGroup {
+  parentName String?
+  goals GoalConfig[]
+  name        String   @id
+  description String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([sortOrder])
+  @@index([parentName])
+}
+
+model ContentItem {
+  id             String    @id @default(cuid())
+  bvid           String    @unique
+  aid            String?
+  creatorId      String
+  title          String
+  coverUrl       String?
+  publishedAt    DateTime?
+  durationText   String?
+  durationSeconds Int      @default(0)
+  category       String?
+  viewCount      Int       @default(0)
+  danmakuCount   Int       @default(0)
+  replyCount     Int       @default(0)
+  favoriteCount  Int       @default(0)
+  coinCount      Int       @default(0)
+  shareCount     Int       @default(0)
+  likeCount      Int       @default(0)
+  lastFetchedAt  DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  creator        UpCreator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  snapshots      MetricSnapshot[]
+
+  @@index([creatorId])
+  @@index([publishedAt])
+  @@index([viewCount])
+}
+
+model MonitorTask {
+  id              String    @id @default(cuid())
+  name            String
+  targetMode      String    @default("ALL_ACTIVE")
+  groupName       String?
+  intervalMinutes Int       @default(30)
+  status          String    @default("ACTIVE")
+  nextRunAt       DateTime?
+  lastRunAt       DateTime?
+  lastSuccessAt   DateTime?
+  lastFailedAt    DateTime?
+  lastResult      String?
+  lastError       String?
+  isRunning       Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  targets         TaskTarget[]
+  runs            TaskRunLog[]
+
+  @@index([status])
+  @@index([nextRunAt])
+}
+
+model TaskTarget {
+  id        String      @id @default(cuid())
+  taskId    String
+  creatorId String
+  createdAt DateTime    @default(now())
+
+  task      MonitorTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  creator   UpCreator   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, creatorId])
+  @@index([creatorId])
+}
+
+model MetricSnapshot {
+  id             String       @id @default(cuid())
+  creatorId      String?
+  contentId      String?
+  followerCount  Int?
+  followingCount Int?
+  likeCount      Int?
+  viewCount      Int?
+  videoCount     Int?
+  danmakuCount   Int?
+  replyCount     Int?
+  favoriteCount  Int?
+  coinCount      Int?
+  shareCount     Int?
+  capturedAt     DateTime     @default(now())
+
+  creator        UpCreator?   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  content        ContentItem? @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@index([creatorId, capturedAt])
+  @@index([contentId, capturedAt])
+}
+
+model TaskRunLog {
+  id           String      @id @default(cuid())
+  taskId       String?
+  status       String
+  startedAt    DateTime    @default(now())
+  finishedAt   DateTime?
+  successCount Int         @default(0)
+  failureCount Int         @default(0)
+  itemCount    Int         @default(0)
+  errorCode    String?
+  errorMessage String?
+  details      String?
+
+  task         MonitorTask? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([taskId, startedAt])
+  @@index([status])
+}
+
+model AppSetting {
+  id                     String   @id @default("singleton")
+  schedulerEnabled       Boolean  @default(true)
+  defaultIntervalMinutes Int      @default(30)
+  maxVideosPerUp         Int      @default(30)
+  requestDelayMinMs      Int      @default(2000)
+  requestDelayMaxMs      Int      @default(5000)
+  biliCookie             String?
+  theme                  String   @default("PINK")
+  updatedAt              DateTime @updatedAt
+}
+
+model WeeklyNotification {
+  kind String @default("WEEK")
+  id String @id @default(cuid())
+  weekKey String @unique
+  periodStart DateTime
+  periodEnd DateTime
+  payload String
+  readAt DateTime?
+  popupSeenAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model GoalConfig {
+  id String @id @default(cuid())
+  creatorId String?
+  groupName String?
+  period String
+  targets String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  creator UpCreator? @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  group CreatorGroup? @relation(fields: [groupName], references: [name], onDelete: Cascade, onUpdate: Cascade)
+  @@unique([creatorId, period])
+  @@unique([groupName, period])
+}
